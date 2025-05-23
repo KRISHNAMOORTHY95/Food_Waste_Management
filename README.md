@@ -1,1 +1,1 @@
-# food_waste_management
+# food_waste_management_system
