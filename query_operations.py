@@ -3,8 +3,7 @@ import pandas as pd
 from database_utils import run_query
 
 # SQL Queries for reports - 21 comprehensive queries
-queries = {
-    
+queries = {    
 Number of food providers in each city
 SELECT City, COUNT(*) AS Provider_Count FROM providers_data GROUP BY City;
 
