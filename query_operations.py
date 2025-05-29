@@ -195,6 +195,17 @@ queries = {
         GROUP BY Provider_ID
         ORDER BY Unique_Food_Items DESC
         LIMIT 5;
+    """,
+    
+    "Show all tables in database": """
+        SHOW TABLES;
+    """,
+    
+    "Show database structure": """
+        SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE()
+        ORDER BY TABLE_NAME, ORDINAL_POSITION;
     """
 }
 
