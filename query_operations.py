@@ -4,52 +4,59 @@ from database_utils import run_query
 
 # SQL Queries for reports - 21 comprehensive queries
 queries = {    
-Number of food providers in each city
-SELECT City, COUNT(*) AS Provider_Count FROM providers_data GROUP BY City;
+-- 1. Number of food providers in each city
+SELECT City, COUNT(*) AS Provider_Count 
+FROM providers_data 
+GROUP BY City;
 
-Number of food receivers in each city
-SELECT City, COUNT(*) AS Receiver_Count FROM receivers_data GROUP BY City;
+-- 2. Number of food receivers in each city
+SELECT City, COUNT(*) AS Receiver_Count 
+FROM receivers_data 
+GROUP BY City;
 
-Provider type contributing most food
+-- 3. Provider type contributing most food
 SELECT Provider_Type, SUM(Quantity) AS Total_Quantity
 FROM food_listings_data
 GROUP BY Provider_Type
 ORDER BY Total_Quantity DESC
 LIMIT 1;
 
-Contact info of providers in a specific city (e.g., 'New Jessica')
-SELECT Name, Contact FROM providers_data WHERE City = 'New Jessica';
+-- 4. Contact info of providers in a specific city (e.g., 'New Jessica')
+SELECT Name, Contact 
+FROM providers_data 
+WHERE City = 'New Jessica';
 
- Receiver with the most food claims
+-- 5. Receiver with the most food claims
 SELECT Receiver_ID, COUNT(*) AS Total_Claims
 FROM claims_data
 GROUP BY Receiver_ID
 ORDER BY Total_Claims DESC
 LIMIT 1;
 
-Total quantity of food available
-SELECT SUM(Quantity) AS Total_Quantity FROM food_listings_data;
+-- 6. Total quantity of food available
+SELECT SUM(Quantity) AS Total_Quantity 
+FROM food_listings_data;
 
-City with the highest number of food listings
+-- 7. City with the highest number of food listings
 SELECT Location AS City, COUNT(*) AS Listing_Count
 FROM food_listings_data
 GROUP BY Location
 ORDER BY Listing_Count DESC
 LIMIT 1;
 
- Most commonly available food types
+-- 8. Most commonly available food types
 SELECT Food_Type, COUNT(*) AS Frequency
 FROM food_listings_data
 GROUP BY Food_Type
 ORDER BY Frequency DESC;
 
-Number of food claims per food item
+-- 9. Number of food claims per food item
 SELECT Food_ID, COUNT(*) AS Claims_Count
 FROM claims_data
 GROUP BY Food_ID
 ORDER BY Claims_Count DESC;
 
-Provider with the highest number of completed food claims
+-- 10. Provider with the highest number of completed food claims
 SELECT fl.Provider_ID, COUNT(*) AS Completed_Claims
 FROM claims_data c
 JOIN food_listings_data fl ON c.Food_ID = fl.Food_ID
@@ -58,93 +65,113 @@ GROUP BY fl.Provider_ID
 ORDER BY Completed_Claims DESC
 LIMIT 1;
 
-Percentage of food claims by status
-SELECT Status, COUNT(*) * 100.0 / (SELECT COUNT(*) FROM claims_data) AS Percentage
+-- 11. Percentage of food claims by status
+SELECT Status, 
+       ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM claims_data), 2) AS Percentage
 FROM claims_data
 GROUP BY Status;
 
-Average quantity of food claimed per receiver
-SELECT c.Receiver_ID, AVG(fl.Quantity) AS Avg_Quantity_Claimed
+-- 12. Average quantity of food claimed per receiver
+SELECT c.Receiver_ID, 
+       ROUND(AVG(fl.Quantity), 2) AS Avg_Quantity_Claimed
 FROM claims_data c
 JOIN food_listings_data fl ON c.Food_ID = fl.Food_ID
 GROUP BY c.Receiver_ID;
 
-Most claimed meal type
+-- 13. Most claimed meal type
 SELECT fl.Meal_Type, COUNT(*) AS Claim_Count
 FROM claims_data c
 JOIN food_listings_data fl ON c.Food_ID = fl.Food_ID
 GROUP BY fl.Meal_Type
-ORDER BY Claim_Count DESC;
+ORDER BY Claim_Count DESC
+LIMIT 1;
 
- Most frequently claimed food items
+-- 14. Most frequently claimed food items
 SELECT fl.Food_Name, COUNT(*) AS Claim_Count
 FROM claims_data c
 JOIN food_listings_data fl ON c.Food_ID = fl.Food_ID
 GROUP BY fl.Food_Name
 ORDER BY Claim_Count DESC;
 
- Busiest days for food claims
+-- 15. Busiest days for food claims
 SELECT DATE(Timestamp) AS Claim_Date, COUNT(*) AS Total_Claims
 FROM claims_data
-GROUP BY Claim_Date
+GROUP BY DATE(Timestamp)
 ORDER BY Total_Claims DESC;
 
- Peak hours for food claims
-SELECT STRFTIME('%H', Timestamp) AS Hour, COUNT(*) AS Claims
+-- 16. Peak hours for food claims
+SELECT CAST(STRFTIME('%H', Timestamp) AS INTEGER) AS Hour, 
+       COUNT(*) AS Claims
 FROM claims_data
-GROUP BY Hour
+GROUP BY CAST(STRFTIME('%H', Timestamp) AS INTEGER)
 ORDER BY Claims DESC;
 
-Claim-to-donation ratio by city
+-- 17. Claim-to-donation ratio by city
 WITH Claims AS (
-  SELECT fl.Location AS City, COUNT(*) AS Total_Claims
-  FROM claims_data c
-  JOIN food_listings_data fl ON c.Food_ID = fl.Food_ID
-  GROUP BY fl.Location
+    SELECT fl.Location AS City, COUNT(*) AS Total_Claims
+    FROM claims_data c
+    JOIN food_listings_data fl ON c.Food_ID = fl.Food_ID
+    GROUP BY fl.Location
 ),
 Listings AS (
-  SELECT Location AS City, COUNT(*) AS Total_Listings
-  FROM food_listings_data
-  GROUP BY Location
+    SELECT Location AS City, COUNT(*) AS Total_Listings
+    FROM food_listings_data
+    GROUP BY Location
 )
-SELECT c.City, Total_Claims, l.Total_Listings,
-       ROUND(Total_Claims * 1.0 / Total_Listings, 2) AS Claim_To_Listing_Ratio
+SELECT c.City, 
+       c.Total_Claims, 
+       l.Total_Listings,
+       ROUND(CAST(c.Total_Claims AS REAL) / l.Total_Listings, 2) AS Claim_To_Listing_Ratio
 FROM Claims c
 JOIN Listings l ON c.City = l.City
 ORDER BY Claim_To_Listing_Ratio DESC;
 
-Average days between listing and claim (assuming both timestamps are valid)
-SELECT AVG(JULIANDAY(c.Timestamp) - JULIANDAY(fl.Expiry_Date)) AS Avg_Days_To_Claim
+-- 18. Average days between listing creation and claim (FIXED LOGIC)
+-- Assuming you want days between food listing creation and claim timestamp
+SELECT ROUND(AVG(JULIANDAY(c.Timestamp) - JULIANDAY(fl.Created_Date)), 2) AS Avg_Days_To_Claim
 FROM claims_data c
 JOIN food_listings_data fl ON c.Food_ID = fl.Food_ID
-WHERE c.Status = 'Completed';
+WHERE c.Status = 'Completed'
+AND fl.Created_Date IS NOT NULL;
 
-Provider type effectiveness (highest claim rate)
+-- Alternative: If you want days before expiry when claimed
+SELECT ROUND(AVG(JULIANDAY(fl.Expiry_Date) - JULIANDAY(c.Timestamp)), 2) AS Avg_Days_Before_Expiry
+FROM claims_data c
+JOIN food_listings_data fl ON c.Food_ID = fl.Food_ID
+WHERE c.Status = 'Completed'
+AND fl.Expiry_Date IS NOT NULL
+AND c.Timestamp IS NOT NULL;
+
+-- 19. Provider type effectiveness (highest claim rate)
 WITH Total_Listings AS (
-  SELECT Provider_Type, COUNT(*) AS Listings
-  FROM food_listings_data
-  GROUP BY Provider_Type
+    SELECT Provider_Type, COUNT(*) AS Listings
+    FROM food_listings_data
+    GROUP BY Provider_Type
 ),
 Claimed AS (
-  SELECT fl.Provider_Type, COUNT(*) AS Claims
-  FROM claims_data c
-  JOIN food_listings_data fl ON c.Food_ID = fl.Food_ID
-  WHERE c.Status = 'Completed'
-  GROUP BY fl.Provider_Type
+    SELECT fl.Provider_Type, COUNT(*) AS Claims
+    FROM claims_data c
+    JOIN food_listings_data fl ON c.Food_ID = fl.Food_ID
+    WHERE c.Status = 'Completed'
+    GROUP BY fl.Provider_Type
 )
-SELECT t.Provider_Type, t.Listings, c.Claims,
-       ROUND(c.Claims * 1.0 / t.Listings, 2) AS Effectiveness_Rate
+SELECT t.Provider_Type, 
+       t.Listings, 
+       COALESCE(c.Claims, 0) AS Claims,
+       ROUND(COALESCE(c.Claims, 0) * 1.0 / t.Listings, 2) AS Effectiveness_Rate
 FROM Total_Listings t
-JOIN Claimed c ON t.Provider_Type = c.Provider_Type
+LEFT JOIN Claimed c ON t.Provider_Type = c.Provider_Type
 ORDER BY Effectiveness_Rate DESC;
 
-Average days to expiry for listed food
-SELECT AVG(JULIANDAY(Expiry_Date) - JULIANDAY('now')) AS Avg_Days_To_Expire
-FROM food_listings_data;
+-- 20. Average days to expiry for listed food (from current date)
+SELECT ROUND(AVG(JULIANDAY(Expiry_Date) - JULIANDAY('now')), 2) AS Avg_Days_To_Expire
+FROM food_listings_data
+WHERE Expiry_Date IS NOT NULL;
 
-Top 5 providers with most food variety
+-- 21. Top 5 providers with most food variety
 SELECT Provider_ID, COUNT(DISTINCT Food_Name) AS Unique_Food_Items
 FROM food_listings_data
+WHERE Food_Name IS NOT NULL
 GROUP BY Provider_ID
 ORDER BY Unique_Food_Items DESC
 LIMIT 5;
