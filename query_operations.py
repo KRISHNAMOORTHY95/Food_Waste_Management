@@ -198,14 +198,19 @@ queries = {
     """,
     
     "Show all tables in database": """
-        SHOW TABLES;
+        SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
+        WHERE TABLE_SCHEMA = DATABASE();
     """,
     
     "Show database structure": """
-        SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE 
+        SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_SCHEMA = DATABASE()
         ORDER BY TABLE_NAME, ORDINAL_POSITION;
+    """,
+    
+    "Check TiDB version": """
+        SELECT VERSION() as TiDB_Version;
     """
 }
 
