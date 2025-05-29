@@ -4,191 +4,151 @@ from database_utils import run_query
 
 # SQL Queries for reports - 21 comprehensive queries
 queries = {
-    "Food Expiring Soon (Next 3 Days)": 
-        """SELECT Food_ID, Food_Name, Quantity, Expiry_Date, Provider_Type, Location 
-           FROM food_listings 
-           WHERE DATE(Expiry_Date) BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY) 
-           ORDER BY Expiry_Date""",
     
-    "Food Available by Type": 
-        """SELECT Food_Type, COUNT(*) as Count, SUM(Quantity) as Total_Quantity 
-           FROM food_listings 
-           GROUP BY Food_Type 
-           ORDER BY Total_Quantity DESC""",
-    
-    "Provider Contribution Summary": 
-        """SELECT Provider_Type, COUNT(*) as Listings, SUM(Quantity) as Total_Quantity 
-           FROM food_listings 
-           GROUP BY Provider_Type 
-           ORDER BY Total_Quantity DESC""",
-    
-    "Food by Meal Type": 
-        """SELECT Meal_Type, COUNT(*) as Count, SUM(Quantity) as Total_Quantity 
-           FROM food_listings 
-           GROUP BY Meal_Type 
-           ORDER BY Total_Quantity DESC""",
-    
-    "Location Distribution": 
-        """SELECT Location, COUNT(*) as Count, SUM(Quantity) as Total_Quantity 
-           FROM food_listings 
-           GROUP BY Location 
-           ORDER BY Count DESC""",
-           
-    "Expired Food Items": 
-        """SELECT Food_ID, Food_Name, Quantity, Expiry_Date, Provider_Type, Location 
-           FROM food_listings 
-           WHERE DATE(Expiry_Date) < CURDATE() 
-           ORDER BY Expiry_Date DESC""",
-           
-    "Food Items with Longest Shelf Life": 
-        """SELECT Food_ID, Food_Name, Quantity, Expiry_Date, 
-           DATEDIFF(Expiry_Date, CURDATE()) as Days_Until_Expiry
-           FROM food_listings 
-           WHERE DATE(Expiry_Date) > CURDATE()
-           ORDER BY Days_Until_Expiry DESC 
-           LIMIT 20""",
-           
-    "Low Quantity Items (Less than 10)": 
-        """SELECT Food_ID, Food_Name, Quantity, Expiry_Date, Provider_Type, Location 
-           FROM food_listings 
-           WHERE Quantity < 10 AND DATE(Expiry_Date) > CURDATE() 
-           ORDER BY Quantity""",
-           
-    "Monthly Food Entry Trends": 
-        """SELECT DATE_FORMAT(STR_TO_DATE(CONCAT(YEAR(NOW()), '-', MONTH(NOW()), '-01'), '%Y-%m-%d') - INTERVAL n MONTH, '%Y-%m') as Month,
-           COUNT(Food_ID) as Listings,
-           IFNULL(SUM(Quantity), 0) as Total_Quantity
-           FROM (
-               SELECT 0 as n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 
-               UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 
-               UNION SELECT 8 UNION SELECT 9 UNION SELECT 10 UNION SELECT 11
-           ) months
-           LEFT JOIN food_listings ON DATE_FORMAT(food_listings.Expiry_Date, '%Y-%m') = 
-               DATE_FORMAT(STR_TO_DATE(CONCAT(YEAR(NOW()), '-', MONTH(NOW()), '-01'), '%Y-%m-%d') - INTERVAL n MONTH, '%Y-%m')
-           GROUP BY Month
-           ORDER BY Month DESC""",
-           
-    "Top 10 Providers by Quantity": 
-        """SELECT Provider_Type, Provider_ID, COUNT(*) as Listings, SUM(Quantity) as Total_Quantity 
-           FROM food_listings 
-           GROUP BY Provider_Type, Provider_ID 
-           ORDER BY Total_Quantity DESC 
-           LIMIT 10""",
-           
-    "Food Diversity by Location": 
-        """SELECT Location, COUNT(DISTINCT Food_Type) as Food_Type_Count 
-           FROM food_listings 
-           GROUP BY Location 
-           ORDER BY Food_Type_Count DESC""",
-           
-    "Average Expiry Timeline by Food Type": 
-        """SELECT Food_Type, 
-           AVG(DATEDIFF(Expiry_Date, CURDATE())) as Avg_Days_Until_Expiry 
-           FROM food_listings 
-           WHERE DATE(Expiry_Date) > CURDATE()
-           GROUP BY Food_Type 
-           ORDER BY Avg_Days_Until_Expiry DESC""",
-           
-    "Recently Added Items": 
-        """SELECT Food_ID, Food_Name, Quantity, Expiry_Date, Provider_Type, Location
-           FROM food_listings 
-           ORDER BY Food_ID DESC 
-           LIMIT 20""",
-           
-    "Quantity Distribution by Food Type": 
-        """SELECT Food_Type, 
-           SUM(CASE WHEN Quantity < 10 THEN 1 ELSE 0 END) as Low_Stock,
-           SUM(CASE WHEN Quantity BETWEEN 10 AND 50 THEN 1 ELSE 0 END) as Medium_Stock,
-           SUM(CASE WHEN Quantity > 50 THEN 1 ELSE 0 END) as High_Stock,
-           SUM(Quantity) as Total_Quantity
-           FROM food_listings 
-           GROUP BY Food_Type 
-           ORDER BY Total_Quantity DESC""",
-           
-    "Inventory by Location and Food Type": 
-        """SELECT Location, Food_Type, COUNT(*) as Items, SUM(Quantity) as Total_Quantity 
-           FROM food_listings 
-           GROUP BY Location, Food_Type 
-           ORDER BY Location, Total_Quantity DESC""",
-           
-    "Provider Type Distribution": 
-        """SELECT 
-           CASE 
-              WHEN Provider_Type = 'Restaurant' THEN 'Restaurant'
-              WHEN Provider_Type = 'Grocery Store' THEN 'Grocery Store'
-              WHEN Provider_Type = 'Supermarket' THEN 'Supermarket'
-              WHEN Provider_Type = 'Bakery' THEN 'Bakery'
-              WHEN Provider_Type = 'Hotel' THEN 'Hotel'
-              WHEN Provider_Type = 'Farm' THEN 'Farm'
-              ELSE 'Other'
-           END as Provider_Category,
-           COUNT(*) as Count, 
-           SUM(Quantity) as Total_Quantity
-           FROM food_listings
-           GROUP BY Provider_Category
-           ORDER BY Total_Quantity DESC""",
-           
-    "Non-Vegetarian vs Vegetarian Inventory": 
-        """SELECT 
-           CASE 
-              WHEN Food_Type = 'Non-Vegetarian' THEN 'Non-Vegetarian'
-              ELSE 'Vegetarian/Vegan'
-           END as Diet_Category,
-           COUNT(*) as Items,
-           SUM(Quantity) as Total_Quantity
-           FROM food_listings
-           GROUP BY Diet_Category
-           ORDER BY Total_Quantity DESC""",
-           
-    "Food Expiring in 4-7 Days": 
-        """SELECT Food_ID, Food_Name, Quantity, Expiry_Date, Provider_Type, Location 
-           FROM food_listings 
-           WHERE DATE(Expiry_Date) BETWEEN DATE_ADD(CURDATE(), INTERVAL 4 DAY) AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) 
-           ORDER BY Expiry_Date""",
-           
-    "Expiry Timeline Analysis": 
-        """SELECT 
-           CASE
-              WHEN DATEDIFF(Expiry_Date, CURDATE()) < 0 THEN 'Expired'
-              WHEN DATEDIFF(Expiry_Date, CURDATE()) BETWEEN 0 AND 3 THEN '0-3 Days'
-              WHEN DATEDIFF(Expiry_Date, CURDATE()) BETWEEN 4 AND 7 THEN '4-7 Days'
-              WHEN DATEDIFF(Expiry_Date, CURDATE()) BETWEEN 8 AND 14 THEN '1-2 Weeks'
-              WHEN DATEDIFF(Expiry_Date, CURDATE()) BETWEEN 15 AND 30 THEN '2-4 Weeks'
-              ELSE 'Over 30 Days'
-           END as Expiry_Period,
-           COUNT(*) as Count,
-           SUM(Quantity) as Total_Quantity
-           FROM food_listings
-           GROUP BY Expiry_Period
-           ORDER BY 
-              CASE Expiry_Period
-                 WHEN 'Expired' THEN 1
-                 WHEN '0-3 Days' THEN 2
-                 WHEN '4-7 Days' THEN 3
-                 WHEN '1-2 Weeks' THEN 4
-                 WHEN '2-4 Weeks' THEN 5
-                 WHEN 'Over 30 Days' THEN 6
-              END""",
-           
-    "Location Capacity Estimate": 
-        """SELECT Location, 
-           COUNT(*) as Item_Count,
-           SUM(Quantity) as Total_Quantity,
-           FLOOR(SUM(Quantity) / COUNT(*)) as Avg_Quantity_Per_Item
-           FROM food_listings
-           GROUP BY Location
-           ORDER BY Total_Quantity DESC""",
-           
-    "Provider Performance Analysis": 
-        """SELECT Provider_Type, 
-           COUNT(DISTINCT Provider_ID) as Unique_Providers,
-           COUNT(*) as Total_Listings,
-           ROUND(COUNT(*) / COUNT(DISTINCT Provider_ID), 1) as Avg_Listings_Per_Provider,
-           SUM(Quantity) as Total_Quantity,
-           ROUND(SUM(Quantity) / COUNT(DISTINCT Provider_ID), 1) as Avg_Quantity_Per_Provider
-           FROM food_listings
-           GROUP BY Provider_Type
-           ORDER BY Total_Quantity DESC"""
+Number of food providers in each city
+SELECT City, COUNT(*) AS Provider_Count FROM providers_data GROUP BY City;
+
+Number of food receivers in each city
+SELECT City, COUNT(*) AS Receiver_Count FROM receivers_data GROUP BY City;
+
+Provider type contributing most food
+SELECT Provider_Type, SUM(Quantity) AS Total_Quantity
+FROM food_listings_data
+GROUP BY Provider_Type
+ORDER BY Total_Quantity DESC
+LIMIT 1;
+
+Contact info of providers in a specific city (e.g., 'New Jessica')
+SELECT Name, Contact FROM providers_data WHERE City = 'New Jessica';
+
+ Receiver with the most food claims
+SELECT Receiver_ID, COUNT(*) AS Total_Claims
+FROM claims_data
+GROUP BY Receiver_ID
+ORDER BY Total_Claims DESC
+LIMIT 1;
+
+Total quantity of food available
+SELECT SUM(Quantity) AS Total_Quantity FROM food_listings_data;
+
+City with the highest number of food listings
+SELECT Location AS City, COUNT(*) AS Listing_Count
+FROM food_listings_data
+GROUP BY Location
+ORDER BY Listing_Count DESC
+LIMIT 1;
+
+ Most commonly available food types
+SELECT Food_Type, COUNT(*) AS Frequency
+FROM food_listings_data
+GROUP BY Food_Type
+ORDER BY Frequency DESC;
+
+Number of food claims per food item
+SELECT Food_ID, COUNT(*) AS Claims_Count
+FROM claims_data
+GROUP BY Food_ID
+ORDER BY Claims_Count DESC;
+
+Provider with the highest number of completed food claims
+SELECT fl.Provider_ID, COUNT(*) AS Completed_Claims
+FROM claims_data c
+JOIN food_listings_data fl ON c.Food_ID = fl.Food_ID
+WHERE c.Status = 'Completed'
+GROUP BY fl.Provider_ID
+ORDER BY Completed_Claims DESC
+LIMIT 1;
+
+Percentage of food claims by status
+SELECT Status, COUNT(*) * 100.0 / (SELECT COUNT(*) FROM claims_data) AS Percentage
+FROM claims_data
+GROUP BY Status;
+
+Average quantity of food claimed per receiver
+SELECT c.Receiver_ID, AVG(fl.Quantity) AS Avg_Quantity_Claimed
+FROM claims_data c
+JOIN food_listings_data fl ON c.Food_ID = fl.Food_ID
+GROUP BY c.Receiver_ID;
+
+Most claimed meal type
+SELECT fl.Meal_Type, COUNT(*) AS Claim_Count
+FROM claims_data c
+JOIN food_listings_data fl ON c.Food_ID = fl.Food_ID
+GROUP BY fl.Meal_Type
+ORDER BY Claim_Count DESC;
+
+ Most frequently claimed food items
+SELECT fl.Food_Name, COUNT(*) AS Claim_Count
+FROM claims_data c
+JOIN food_listings_data fl ON c.Food_ID = fl.Food_ID
+GROUP BY fl.Food_Name
+ORDER BY Claim_Count DESC;
+
+ Busiest days for food claims
+SELECT DATE(Timestamp) AS Claim_Date, COUNT(*) AS Total_Claims
+FROM claims_data
+GROUP BY Claim_Date
+ORDER BY Total_Claims DESC;
+
+ Peak hours for food claims
+SELECT STRFTIME('%H', Timestamp) AS Hour, COUNT(*) AS Claims
+FROM claims_data
+GROUP BY Hour
+ORDER BY Claims DESC;
+
+Claim-to-donation ratio by city
+WITH Claims AS (
+  SELECT fl.Location AS City, COUNT(*) AS Total_Claims
+  FROM claims_data c
+  JOIN food_listings_data fl ON c.Food_ID = fl.Food_ID
+  GROUP BY fl.Location
+),
+Listings AS (
+  SELECT Location AS City, COUNT(*) AS Total_Listings
+  FROM food_listings_data
+  GROUP BY Location
+)
+SELECT c.City, Total_Claims, l.Total_Listings,
+       ROUND(Total_Claims * 1.0 / Total_Listings, 2) AS Claim_To_Listing_Ratio
+FROM Claims c
+JOIN Listings l ON c.City = l.City
+ORDER BY Claim_To_Listing_Ratio DESC;
+
+Average days between listing and claim (assuming both timestamps are valid)
+SELECT AVG(JULIANDAY(c.Timestamp) - JULIANDAY(fl.Expiry_Date)) AS Avg_Days_To_Claim
+FROM claims_data c
+JOIN food_listings_data fl ON c.Food_ID = fl.Food_ID
+WHERE c.Status = 'Completed';
+
+Provider type effectiveness (highest claim rate)
+WITH Total_Listings AS (
+  SELECT Provider_Type, COUNT(*) AS Listings
+  FROM food_listings_data
+  GROUP BY Provider_Type
+),
+Claimed AS (
+  SELECT fl.Provider_Type, COUNT(*) AS Claims
+  FROM claims_data c
+  JOIN food_listings_data fl ON c.Food_ID = fl.Food_ID
+  WHERE c.Status = 'Completed'
+  GROUP BY fl.Provider_Type
+)
+SELECT t.Provider_Type, t.Listings, c.Claims,
+       ROUND(c.Claims * 1.0 / t.Listings, 2) AS Effectiveness_Rate
+FROM Total_Listings t
+JOIN Claimed c ON t.Provider_Type = c.Provider_Type
+ORDER BY Effectiveness_Rate DESC;
+
+Average days to expiry for listed food
+SELECT AVG(JULIANDAY(Expiry_Date) - JULIANDAY('now')) AS Avg_Days_To_Expire
+FROM food_listings_data;
+
+Top 5 providers with most food variety
+SELECT Provider_ID, COUNT(DISTINCT Food_Name) AS Unique_Food_Items
+FROM food_listings_data
+GROUP BY Provider_ID
+ORDER BY Unique_Food_Items DESC
+LIMIT 5;
 }
 
 def show_queries():
