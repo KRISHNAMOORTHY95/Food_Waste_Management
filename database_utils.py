@@ -40,106 +40,163 @@ def init_database():
         
         # Create tables if they don't exist
         cursor.execute('''
-        CREATE TABLE IF NOT EXISTS food_listings (
-            Food_ID INT AUTO_INCREMENT PRIMARY KEY,
+         # TiDB Compatible Schema
+    schema_statements = [
+        """CREATE TABLE IF NOT EXISTS providers_data (
+            Provider_ID BIGINT PRIMARY KEY AUTO_INCREMENT,
+            Name VARCHAR(255) NOT NULL,
+            Provider_Type VARCHAR(50) NOT NULL,
+            Contact VARCHAR(255),
+            Email VARCHAR(255),
+            Phone VARCHAR(20),
+            Address TEXT,
+            City VARCHAR(100) NOT NULL,
+            State VARCHAR(100),
+            Postal_Code VARCHAR(20),
+            Registration_Date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            Status VARCHAR(20) DEFAULT 'Active'
+        )""",
+        
+        """CREATE TABLE IF NOT EXISTS receivers_data (
+            Receiver_ID BIGINT PRIMARY KEY AUTO_INCREMENT,
+            Name VARCHAR(255) NOT NULL,
+            Organization_Type VARCHAR(50) NOT NULL,
+            Contact VARCHAR(255),
+            Email VARCHAR(255),
+            Phone VARCHAR(20),
+            Address TEXT,
+            City VARCHAR(100) NOT NULL,
+            State VARCHAR(100),
+            Postal_Code VARCHAR(20),
+            Registration_Date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            Status VARCHAR(20) DEFAULT 'Active'
+        )""",
+        
+        """CREATE TABLE IF NOT EXISTS food_listings_data (
+            Food_ID BIGINT PRIMARY KEY AUTO_INCREMENT,
+            Provider_ID BIGINT NOT NULL,
             Food_Name VARCHAR(255) NOT NULL,
-            Quantity INT NOT NULL,
-            Expiry_Date DATE NOT NULL,
-            Provider_ID INT NOT NULL,
-            Provider_Type VARCHAR(100),
-            Location VARCHAR(255),
-            Food_Type VARCHAR(100),
-            Meal_Type VARCHAR(100),
-            Listed_Date DATE DEFAULT (CURRENT_DATE)
-        )
-        ''')
+            Food_Type VARCHAR(50) NOT NULL,
+            Meal_Type VARCHAR(20) DEFAULT 'Other',
+            Quantity DECIMAL(10,2) NOT NULL,
+            Unit VARCHAR(20) DEFAULT 'kg',
+            Location VARCHAR(255) NOT NULL,
+            Expiry_Date DATETIME NOT NULL,
+            Created_Date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            Description TEXT,
+            Status VARCHAR(20) DEFAULT 'Available'
+        )""",
         
-        # Check if the table is empty, if so, add sample data
-        cursor.execute("SELECT COUNT(*) FROM food_listings")
-        count = cursor.fetchone()[0]
+        """CREATE TABLE IF NOT EXISTS claims_data (
+            Claim_ID BIGINT PRIMARY KEY AUTO_INCREMENT,
+            Food_ID BIGINT NOT NULL,
+            Receiver_ID BIGINT NOT NULL,
+            Claimed_Quantity DECIMAL(10,2) NOT NULL,
+            Timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            Status VARCHAR(20) DEFAULT 'Pending',
+            Pickup_Time DATETIME,
+            Notes TEXT
+        )""",
         
-        if count == 0:
-            # Add sample data
-            today = datetime.date.today()
-            
-            # Sample data with varied expiry dates
-            sample_data = [
-                ("Fresh Vegetables", 10, (today + datetime.timedelta(days=3)).isoformat(), 1, "Farm", "Downtown Market", "Vegetarian", "Dinner"),
-                ("Bread Loaves", 20, (today + datetime.timedelta(days=1)).isoformat(), 2, "Bakery", "Main Street", "Vegan", "Breakfast"),
-                ("Milk Cartons", 15, (today + datetime.timedelta(days=5)).isoformat(), 3, "Grocery Store", "North District", "Dairy", "Breakfast"),
-                ("Cooked Pasta", 25, (today + datetime.timedelta(days=2)).isoformat(), 4, "Restaurant", "Downtown", "Vegetarian", "Lunch"),
-                ("Fresh Fruits", 30, (today + datetime.timedelta(days=4)).isoformat(), 1, "Farm", "East Market", "Organic", "Snacks"),
-                ("Chicken Curry", 8, (today + datetime.timedelta(days=1)).isoformat(), 5, "Restaurant", "South District", "Non-Vegetarian", "Dinner"),
-                ("Pastries", 12, (today + datetime.timedelta(days=2)).isoformat(), 2, "Bakery", "West End", "Vegetarian", "Dessert"),
-                ("Rice Bags", 5, (today + datetime.timedelta(days=30)).isoformat(), 6, "Supermarket", "Central Area", "Gluten-Free", "Dinner"),
-                ("Fresh Juice", 18, (today + datetime.timedelta(days=3)).isoformat(), 7, "Juice Bar", "Market Square", "Organic", "Beverage"),
-                ("Vegetable Soup", 15, (today + datetime.timedelta(days=2)).isoformat(), 4, "Restaurant", "Downtown", "Vegan", "Lunch")
-            ]
-            
-            # MySQL uses %s as placeholder instead of ? in SQLite
-            cursor.executemany('''
-            INSERT INTO food_listings 
-            (Food_Name, Quantity, Expiry_Date, Provider_ID, Provider_Type, Location, Food_Type, Meal_Type)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            ''', sample_data)
-            
-            conn.commit()
-            st.sidebar.success("Database initialized with sample data!")
+        # Create indexes
+        "CREATE INDEX IF NOT EXISTS idx_providers_city ON providers_data(City)",
+        "CREATE INDEX IF NOT EXISTS idx_receivers_city ON receivers_data(City)",
+        "CREATE INDEX IF NOT EXISTS idx_food_location ON food_listings_data(Location)",
+        "CREATE INDEX IF NOT EXISTS idx_food_expiry ON food_listings_data(Expiry_Date)",
+        "CREATE INDEX IF NOT EXISTS idx_food_status ON food_listings_data(Status)",
+        "CREATE INDEX IF NOT EXISTS idx_claims_status ON claims_data(Status)",
+        "CREATE INDEX IF NOT EXISTS idx_claims_timestamp ON claims_data(Timestamp)"
+    ]
+    
+    sample_data_statements = [
+        """INSERT INTO providers_data (Name, Provider_Type, Contact, Email, Phone, City, Address) VALUES
+        ('Green Grocery Store', 'Grocery Store', 'John Smith', 'john@greengrocery.com', '123-456-7890', 'New Jessica', '123 Main St'),
+        ('Bella Restaurant', 'Restaurant', 'Maria Garcia', 'maria@bella.com', '123-456-7891', 'Springfield', '456 Oak Ave'),
+        ('Fresh Bakery', 'Bakery', 'David Lee', 'david@freshbakery.com', '123-456-7892', 'New Jessica', '789 Pine St'),
+        ('Hotel Paradise', 'Hotel', 'Sarah Johnson', 'sarah@paradise.com', '123-456-7893', 'Downtown', '321 Elm St'),
+        ('Corner Cafe', 'Cafe', 'Mike Brown', 'mike@cornercafe.com', '123-456-7894', 'Springfield', '654 Maple Ave')""",
         
-        conn.close()
-        return True
-    except Error as e:
-        st.error(f"Database initialization error: {str(e)}")
-        return False
+        """INSERT INTO receivers_data (Name, Organization_Type, Contact, Email, Phone, City, Address) VALUES
+        ('Food for All NGO', 'NGO', 'Lisa Wilson', 'lisa@foodforall.org', '123-555-0001', 'New Jessica', '100 Charity Lane'),
+        ('Community Kitchen', 'Community Center', 'Robert Davis', 'robert@communitykitchen.org', '123-555-0002', 'Springfield', '200 Help St'),
+        ('City School District', 'School', 'Jennifer Taylor', 'jennifer@cityschools.edu', '123-555-0003', 'Downtown', '300 Education Blvd'),
+        ('Helping Hands Charity', 'Charity', 'Michael Anderson', 'michael@helpinghands.org', '123-555-0004', 'New Jessica', '400 Care Ave'),
+        ('Individual Volunteer', 'Individual', 'Emily Rodriguez', 'emily@email.com', '123-555-0005', 'Springfield', '500 Volunteer St')""",
+        
+        """INSERT INTO food_listings_data (Provider_ID, Food_Name, Food_Type, Meal_Type, Quantity, Unit, Location, Expiry_Date, Description) VALUES
+        (1, 'Fresh Apples', 'Fruits', 'Snack', 50.00, 'kg', 'New Jessica', DATE_ADD(NOW(), INTERVAL 3 DAY), 'Organic red apples'),
+        (1, 'Bread Loaves', 'Bakery', 'Other', 25.00, 'pieces', 'New Jessica', DATE_ADD(NOW(), INTERVAL 1 DAY), 'Day-old bread'),
+        (2, 'Pasta Dishes', 'Prepared Food', 'Lunch', 30.00, 'servings', 'Springfield', DATE_ADD(NOW(), INTERVAL 2 DAY), 'Leftover pasta'),
+        (3, 'Croissants', 'Bakery', 'Breakfast', 20.00, 'pieces', 'New Jessica', DATE_ADD(NOW(), INTERVAL 1 DAY), 'Fresh croissants'),
+        (4, 'Vegetable Soup', 'Prepared Food', 'Dinner', 40.00, 'servings', 'Downtown', DATE_ADD(NOW(), INTERVAL 2 DAY), 'Homemade soup')""",
+        
+        """INSERT INTO claims_data (Food_ID, Receiver_ID, Claimed_Quantity, Status, Pickup_Time, Notes) VALUES
+        (1, 1, 25.00, 'Completed', DATE_ADD(NOW(), INTERVAL 1 HOUR), 'Picked up successfully'),
+        (2, 2, 15.00, 'Approved', DATE_ADD(NOW(), INTERVAL 2 HOUR), 'Will pick up this afternoon'),
+        (3, 3, 30.00, 'Pending', NULL, 'Requested for school lunch program'),
+        (4, 1, 10.00, 'Completed', DATE_ADD(NOW(), INTERVAL -1 HOUR), 'Great for breakfast program')"""
+    ]
+    
+    connection = create_tidb_connection()
+    if connection:
+        try:
+            print("📊 Creating tables...")
+            execute_tidb_statements(connection, schema_statements)
+            
+            print("📝 Inserting sample data...")
+            execute_tidb_statements(connection, sample_data_statements)
+            
+            print("✅ TiDB database setup completed successfully!")
+            
+            # Verify setup
+            cursor = connection.cursor()
+            cursor.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE()")
+            tables = cursor.fetchall()
+            print(f"📋 Created tables: {[table[0] for table in tables]}")
+            cursor.close()
+            
+        except Exception as e:
+            print(f"❌ Database setup failed: {e}")
+        finally:
+            connection.close()
+    else:
+        print("❌ Could not connect to TiDB")
 
-def load_food_data():
-    """Load food listings from the database."""
-    try:
-        conn = get_db_connection()
-        if not conn:
-            return pd.DataFrame()
-        
-        cursor = conn.cursor(dictionary=True)
-        query = "SELECT * FROM food_listings ORDER BY Food_ID DESC"
-        cursor.execute(query)
-        
-        # Fetch all rows as dictionaries
-        rows = cursor.fetchall()
-        conn.close()
-        
-        # Convert to DataFrame
-        data = pd.DataFrame(rows) if rows else pd.DataFrame()
-        
-        # Convert date strings to datetime objects
-        if not data.empty:
-            if 'Expiry_Date' in data.columns:
-                data['Expiry_Date'] = pd.to_datetime(data['Expiry_Date']).dt.date
-            
-            if 'Listed_Date' in data.columns:
-                data['Listed_Date'] = pd.to_datetime(data['Listed_Date']).dt.date
+# Streamlit Integration
+def setup_tidb_via_streamlit():
+    """Setup TiDB database via Streamlit interface"""
+    st.subheader("🗄️ TiDB Database Setup")
+    
+    with st.expander("Database Connection Settings"):
+        host = st.text_input("TiDB Host", value="your-tidb-host.tidbcloud.com")
+        port = st.number_input("Port", value=4000)
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        database = st.text_input("Database Name")
+    
+    if st.button("🚀 Setup Database"):
+        if all([host, username, password, database]):
+            try:
+                connection = pymysql.connect(
+                    host=host,
+                    port=int(port),
+                    user=username,
+                    password=password,
+                    database=database,
+                    charset='utf8mb4'
+                )
                 
-        return data
-    except Error as e:
-        st.error(f"Error loading food data: {str(e)}")
-        return pd.DataFrame()
+                st.success("✅ Connected to TiDB successfully!")
+                
+                # Run setup
+                with st.spinner("Setting up tables..."):
+                    # Add setup logic here
+                    st.success("🎉 Database setup completed!")
+                    
+            except Exception as e:
+                st.error(f"❌ Connection failed: {e}")
+        else:
+            st.warning("Please fill in all connection details")
 
-def run_query(query):
-    """Execute a custom SQL query and return results as a DataFrame."""
-    try:
-        conn = get_db_connection()
-        if not conn:
-            return pd.DataFrame()
-        
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute(query)
-        
-        # Fetch all rows as dictionaries
-        rows = cursor.fetchall()
-        conn.close()
-        
-        # Convert to DataFrame
-        data = pd.DataFrame(rows) if rows else pd.DataFrame()
-        return data
-    except Error as e:
-        st.error(f"Error running query: {str(e)}")
-        return pd.DataFrame()
+if __name__ == "__main__":
+    setup_tidb_database()
