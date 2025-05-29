@@ -189,6 +189,165 @@ def run_query(query):
             conn.close()
         return pd.DataFrame()
 
+def load_food_data():
+    """Load food listings data from the database."""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return pd.DataFrame()
+        
+        query = """
+        SELECT 
+            fl.Food_ID,
+            fl.Food_Name,
+            fl.Food_Type,
+            fl.Meal_Type,
+            fl.Quantity,
+            fl.Unit,
+            fl.Location,
+            fl.Expiry_Date,
+            fl.Created_Date,
+            fl.Description,
+            fl.Status,
+            p.Name as Provider_Name,
+            p.Provider_Type
+        FROM food_listings_data fl
+        LEFT JOIN providers_data p ON fl.Provider_ID = p.Provider_ID
+        WHERE fl.Status = 'Available'
+        ORDER BY fl.Created_Date DESC
+        """
+        
+        result = pd.read_sql(query, conn)
+        conn.close()
+        return result
+        
+    except Exception as e:
+        st.error(f"Error loading food data: {str(e)}")
+        if conn:
+            conn.close()
+        return pd.DataFrame()
+
+def load_providers_data():
+    """Load providers data from the database."""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return pd.DataFrame()
+        
+        query = "SELECT * FROM providers_data WHERE Status = 'Active' ORDER BY Name"
+        result = pd.read_sql(query, conn)
+        conn.close()
+        return result
+        
+    except Exception as e:
+        st.error(f"Error loading providers data: {str(e)}")
+        if conn:
+            conn.close()
+        return pd.DataFrame()
+
+def load_receivers_data():
+    """Load receivers data from the database."""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return pd.DataFrame()
+        
+        query = "SELECT * FROM receivers_data WHERE Status = 'Active' ORDER BY Name"
+        result = pd.read_sql(query, conn)
+        conn.close()
+        return result
+        
+    except Exception as e:
+        st.error(f"Error loading receivers data: {str(e)}")
+        if conn:
+            conn.close()
+        return pd.DataFrame()
+
+def load_claims_data():
+    """Load claims data from the database."""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return pd.DataFrame()
+        
+        query = """
+        SELECT 
+            c.Claim_ID,
+            c.Food_ID,
+            c.Receiver_ID,
+            c.Claimed_Quantity,
+            c.Timestamp,
+            c.Status,
+            c.Pickup_Time,
+            c.Notes,
+            fl.Food_Name,
+            r.Name as Receiver_Name
+        FROM claims_data c
+        LEFT JOIN food_listings_data fl ON c.Food_ID = fl.Food_ID
+        LEFT JOIN receivers_data r ON c.Receiver_ID = r.Receiver_ID
+        ORDER BY c.Timestamp DESC
+        """
+        
+        result = pd.read_sql(query, conn)
+        conn.close()
+        return result
+        
+    except Exception as e:
+        st.error(f"Error loading claims data: {str(e)}")
+        if conn:
+            conn.close()
+        return pd.DataFrame()
+
+def insert_food_listing(provider_id, food_name, food_type, meal_type, quantity, unit, location, expiry_date, description):
+    """Insert a new food listing into the database."""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return False
+        
+        cursor = conn.cursor()
+        query = """
+        INSERT INTO food_listings_data 
+        (Provider_ID, Food_Name, Food_Type, Meal_Type, Quantity, Unit, Location, Expiry_Date, Description)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        
+        cursor.execute(query, (provider_id, food_name, food_type, meal_type, quantity, unit, location, expiry_date, description))
+        cursor.close()
+        conn.close()
+        return True
+        
+    except Exception as e:
+        st.error(f"Error inserting food listing: {str(e)}")
+        if conn:
+            conn.close()
+        return False
+
+def insert_claim(food_id, receiver_id, claimed_quantity, notes=""):
+    """Insert a new claim into the database."""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return False
+        
+        cursor = conn.cursor()
+        query = """
+        INSERT INTO claims_data 
+        (Food_ID, Receiver_ID, Claimed_Quantity, Notes)
+        VALUES (%s, %s, %s, %s)
+        """
+        
+        cursor.execute(query, (food_id, receiver_id, claimed_quantity, notes))
+        cursor.close()
+        conn.close()
+        return True
+        
+    except Exception as e:
+        st.error(f"Error inserting claim: {str(e)}")
+        if conn:
+            conn.close()
+        return False
+
 def setup_tidb_via_streamlit():
     """Setup TiDB database via Streamlit interface"""
     st.subheader("🗄️ TiDB Database Setup")
@@ -255,153 +414,6 @@ def get_table_info():
     except Exception as e:
         st.error(f"Error getting table info: {str(e)}")
         return {}
-
-def load_food_data():
-    """Load food listings data from the database."""
-    try:
-        conn = get_db_connection()
-        if not conn:
-            return pd.DataFrame()
-        
-        query = """
-        SELECT 
-            fl.Food_ID,
-            fl.Food_Name,
-            fl.Food_Type,
-            fl.Meal_Type,
-            fl.Quantity,
-            fl.Unit,
-            fl.Location,
-            fl.Expiry_Date,
-            fl.Created_Date,
-            fl.Description,
-            fl.Status,
-            p.Name as Provider_Name,
-            p.Provider_Type
-        FROM food_listings_data fl
-        LEFT JOIN providers_data p ON fl.Provider_ID = p.Provider_ID
-        WHERE fl.Status = 'Available'
-        ORDER BY fl.Created_Date DESC
-        """
-        
-        result = pd.read_sql(query, conn)
-        conn.close()
-        return result
-        
-    except Exception as e:
-        st.error(f"Error loading food data: {str(e)}")
-        return pd.DataFrame()
-
-def load_providers_data():
-    """Load providers data from the database."""
-    try:
-        conn = get_db_connection()
-        if not conn:
-            return pd.DataFrame()
-        
-        query = "SELECT * FROM providers_data WHERE Status = 'Active' ORDER BY Name"
-        result = pd.read_sql(query, conn)
-        conn.close()
-        return result
-        
-    except Exception as e:
-        st.error(f"Error loading providers data: {str(e)}")
-        return pd.DataFrame()
-
-def load_receivers_data():
-    """Load receivers data from the database."""
-    try:
-        conn = get_db_connection()
-        if not conn:
-            return pd.DataFrame()
-        
-        query = "SELECT * FROM receivers_data WHERE Status = 'Active' ORDER BY Name"
-        result = pd.read_sql(query, conn)
-        conn.close()
-        return result
-        
-    except Exception as e:
-        st.error(f"Error loading receivers data: {str(e)}")
-        return pd.DataFrame()
-
-def load_claims_data():
-    """Load claims data from the database."""
-    try:
-        conn = get_db_connection()
-        if not conn:
-            return pd.DataFrame()
-        
-        query = """
-        SELECT 
-            c.Claim_ID,
-            c.Food_ID,
-            c.Receiver_ID,
-            c.Claimed_Quantity,
-            c.Timestamp,
-            c.Status,
-            c.Pickup_Time,
-            c.Notes,
-            fl.Food_Name,
-            r.Name as Receiver_Name
-        FROM claims_data c
-        LEFT JOIN food_listings_data fl ON c.Food_ID = fl.Food_ID
-        LEFT JOIN receivers_data r ON c.Receiver_ID = r.Receiver_ID
-        ORDER BY c.Timestamp DESC
-        """
-        
-        result = pd.read_sql(query, conn)
-        conn.close()
-        return result
-        
-    except Exception as e:
-        st.error(f"Error loading claims data: {str(e)}")
-        return pd.DataFrame()
-
-def insert_food_listing(provider_id, food_name, food_type, meal_type, quantity, unit, location, expiry_date, description):
-    """Insert a new food listing into the database."""
-    try:
-        conn = get_db_connection()
-        if not conn:
-            return False
-        
-        cursor = conn.cursor()
-        query = """
-        INSERT INTO food_listings_data 
-        (Provider_ID, Food_Name, Food_Type, Meal_Type, Quantity, Unit, Location, Expiry_Date, Description)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        
-        cursor.execute(query, (provider_id, food_name, food_type, meal_type, quantity, unit, location, expiry_date, description))
-        cursor.close()
-        conn.close()
-        return True
-        
-    except Exception as e:
-        st.error(f"Error inserting food listing: {str(e)}")
-        return False
-
-def insert_claim(food_id, receiver_id, claimed_quantity, notes=""):
-    """Insert a new claim into the database."""
-    try:
-        conn = get_db_connection()
-        if not conn:
-            return False
-        
-        cursor = conn.cursor()
-        query = """
-        INSERT INTO claims_data 
-        (Food_ID, Receiver_ID, Claimed_Quantity, Notes)
-        VALUES (%s, %s, %s, %s)
-        """
-        
-        cursor.execute(query, (food_id, receiver_id, claimed_quantity, notes))
-        cursor.close()
-        conn.close()
-        return True
-        
-    except Exception as e:
-        st.error(f"Error inserting claim: {str(e)}")
-        return False
 
 if __name__ == "__main__":
     init_database()
