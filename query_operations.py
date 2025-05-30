@@ -16,14 +16,6 @@ queries = {
         GROUP BY City;
     """,
     
-    "Provider type contributing most food": """
-        SELECT Provider_Type, SUM(Quantity) AS Total_Quantity
-        FROM food_listings_data
-        GROUP BY Provider_Type
-        ORDER BY Total_Quantity DESC
-        LIMIT 1;
-    """,
-    
     "Contact info of providers in New Jessica": """
         SELECT Name, Contact 
         FROM providers_data 
@@ -180,6 +172,14 @@ queries = {
         FROM Total_Listings t
         LEFT JOIN Claimed c ON t.Provider_Type = c.Provider_Type
         ORDER BY Effectiveness_Rate DESC;
+    """,
+
+    "Provider type contributing most food": """
+        SELECT Provider_Type, SUM(Quantity) AS Total_Quantity
+        FROM food_listings_data
+        GROUP BY Provider_Type
+        ORDER BY Total_Quantity DESC
+        LIMIT 1;
     """,
     
     "Average days to expiry for listed food": """
