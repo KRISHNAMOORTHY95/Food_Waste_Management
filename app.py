@@ -21,6 +21,16 @@ def main():
     st.title("🍱 Local Food Wastage Management System")
     st.markdown("""
         Welcome to the platform that connects food providers with receivers to reduce food waste and help those in need.
+        This project helps manage surplus food and reduce wastage by connecting providers with those in need.
+
+        Providers: Restaurants, households, and businesses list surplus food.
+
+        Receivers: NGOs and individuals claim available food.
+
+        Geolocation: Helps locate nearby food.
+
+        SQL Analysis: Powerful insights using SQL queries.
+        
         Use the sidebar to navigate between different operations.
     """)
     
