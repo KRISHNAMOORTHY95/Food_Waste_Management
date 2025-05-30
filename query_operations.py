@@ -17,10 +17,10 @@ queries = {
     """,
     
     "Provider type contributing most food": """
-        SELECT [actual_provider_column], SUM([actual_quantity_column]) AS Total_Quantity
+        SELECT Type, COUNT(*) AS Total_Count
         FROM food_listings_data
-        GROUP BY [actual_provider_column]
-        ORDER BY Total_Quantity DESC
+        GROUP BY Type
+        ORDER BY Total_Count DESC
         LIMIT 1;
     """,
     
