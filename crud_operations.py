@@ -3,195 +3,268 @@ import pandas as pd
 import datetime
 from database_utils import get_db_connection, load_food_data
 from mysql.connector import Error
+import traceback
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CRUD OPERATIONS
+# CRUD OPERATIONS - DEBUGGED VERSION
 # ─────────────────────────────────────────────────────────────────────────────
 
 def add_food():
     """Add a new food listing to the database."""
     st.subheader("➕ Add New Food Listing")
 
-    with st.form("add_food_form"):
+    with st.form("add_food_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
         
         with col1:
-            food_name = st.text_input("Food Name", key="add_food_name")
-            quantity = st.number_input("Quantity", min_value=1, value=1, key="add_quantity")
-            expiry = st.date_input("Expiry Date", min_value=datetime.date.today(), key="add_expiry")
-            provider_id = st.number_input("Provider ID", min_value=1, value=1, key="add_provider_id")
+            food_name = st.text_input("Food Name*", help="Required field")
+            quantity = st.number_input("Quantity", min_value=1, value=1)
+            expiry = st.date_input("Expiry Date", min_value=datetime.date.today())
+            provider_id = st.number_input("Provider ID", min_value=1, value=1)
         
         with col2:
-            provider_type = st.selectbox("Provider Type", ["Restaurant", "Grocery Store", "Supermarket", "Bakery", "Hotel", "Farm"], key="add_provider_type")
-            location = st.text_input("Location", key="add_location")
-            food_type = st.selectbox("Food Type", ["Vegetarian", "Non-Vegetarian", "Vegan", "Dairy", "Gluten-Free", "Organic"], key="add_food_type")
-            meal_type = st.selectbox("Meal Type", ["Breakfast", "Lunch", "Dinner", "Snacks", "Dessert", "Beverage"], key="add_meal_type")
+            provider_type = st.selectbox("Provider Type", 
+                ["Restaurant", "Grocery Store", "Supermarket", "Bakery", "Hotel", "Farm"])
+            location = st.text_input("Location*", help="Required field")
+            food_type = st.selectbox("Food Type", 
+                ["Vegetarian", "Non-Vegetarian", "Vegan", "Dairy", "Gluten-Free", "Organic"])
+            meal_type = st.selectbox("Meal Type", 
+                ["Breakfast", "Lunch", "Dinner", "Snacks", "Dessert", "Beverage"])
 
         submit_button = st.form_submit_button("Add Food", use_container_width=True)
 
         if submit_button:
-            if not food_name or not location:
-                st.error("Food name and location are required!")
+            # Debug: Show what data we're trying to insert
+            st.write("**Debug Info:**")
+            debug_data = {
+                "Food Name": food_name,
+                "Quantity": quantity,
+                "Expiry Date": expiry,
+                "Provider ID": provider_id,
+                "Provider Type": provider_type,
+                "Location": location,
+                "Food Type": food_type,
+                "Meal Type": meal_type
+            }
+            st.json(debug_data)
+            
+            # Validation
+            if not food_name or not food_name.strip():
+                st.error("❌ Food name is required!")
+                return
+            
+            if not location or not location.strip():
+                st.error("❌ Location is required!")
                 return
             
             try:
-                conn = get_db_connection()
-                if conn:
+                with st.spinner("Adding food item..."):
+                    conn = get_db_connection()
+                    if not conn:
+                        st.error("❌ Failed to connect to database")
+                        return
+                    
                     cursor = conn.cursor()
-                    cursor.execute("""
-                        INSERT INTO food_listings (Food_Name, Quantity, Expiry_Date, Provider_ID, Provider_Type, Location, Food_Type, Meal_Type)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
-                        (food_name, quantity, expiry, provider_id, provider_type, location, food_type, meal_type))
+                    
+                    # Check if the table exists and show its structure
+                    cursor.execute("DESCRIBE food_listings")
+                    table_structure = cursor.fetchall()
+                    with st.expander("Database Table Structure (Debug)"):
+                        st.write(table_structure)
+                    
+                    # Insert the data
+                    insert_query = """
+                        INSERT INTO food_listings 
+                        (Food_Name, Quantity, Expiry_Date, Provider_ID, Provider_Type, Location, Food_Type, Meal_Type)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+                    
+                    cursor.execute(insert_query, 
+                        (food_name.strip(), quantity, expiry, provider_id, 
+                         provider_type, location.strip(), food_type, meal_type))
+                    
                     conn.commit()
+                    new_id = cursor.lastrowid
+                    
                     cursor.close()
                     conn.close()
-                    st.success("✅ Food item added successfully!")
-
-                    # Clear session state data to force refresh
+                    
+                    st.success(f"✅ Food item added successfully! New ID: {new_id}")
+                    
+                    # Clear cached data
                     if "food_data" in st.session_state:
                         del st.session_state["food_data"]
                     
-                    # Use st.rerun() instead of session state flag
-                    st.rerun()
-                else:
-                    st.error("Failed to connect to database")
+                    # Wait a moment then rerun
+                    st.balloons()
+                    st.experimental_rerun() if hasattr(st, 'experimental_rerun') else st.rerun()
+                    
             except Error as e:
-                st.error(f"Error adding food item: {str(e)}")
+                st.error(f"❌ Database Error: {str(e)}")
+                st.code(f"Error Code: {e.errno}\nSQL State: {e.sqlstate}")
             except Exception as e:
-                st.error(f"Unexpected error: {str(e)}")
+                st.error(f"❌ Unexpected Error: {str(e)}")
+                st.code(traceback.format_exc())
 
 def update_food():
     """Update an existing food listing."""
     st.subheader("✏️ Update Existing Food Listing")
     
-    # Load fresh data
-    food_data = load_food_data()
-    
-    # Check if there's data to show
-    if food_data.empty:
-        st.info("No food listings available to update.")
-        return
-    
-    # Display current data for reference
-    with st.expander("Current Food Listings", expanded=True):
-        st.dataframe(food_data, use_container_width=True)
-    
     try:
-        # Make sure Food_ID is properly handled as integer
+        # Load fresh data
+        with st.spinner("Loading food data..."):
+            food_data = load_food_data()
+        
+        # Debug: Show data loading status
+        st.write(f"**Debug:** Loaded {len(food_data)} food items")
+        
+        if food_data.empty:
+            st.info("📝 No food listings available to update.")
+            return
+        
+        # Show current data
+        with st.expander("📋 Current Food Listings", expanded=False):
+            st.dataframe(food_data, use_container_width=True)
+        
+        # Clean and prepare data
+        food_data = food_data.copy()
         food_data['Food_ID'] = pd.to_numeric(food_data['Food_ID'], errors='coerce')
-        food_data = food_data.dropna(subset=['Food_ID'])  # Remove rows with invalid IDs
+        food_data = food_data.dropna(subset=['Food_ID'])
         food_data['Food_ID'] = food_data['Food_ID'].astype(int)
         
-        # Create a list of food options with ID and name
-        food_options = [f"ID: {int(row['Food_ID'])} - {row['Food_Name']}" 
-                        for _, row in food_data.iterrows()]
-        
-        if not food_options:
-            st.info("No valid food listings available.")
+        if len(food_data) == 0:
+            st.error("❌ No valid food items found (Food_ID issues)")
             return
         
-        # Select food item to update    
-        selected_option = st.selectbox("Select Food to Update", food_options, key="update_select")
+        # Create selection options
+        food_options = {}
+        for _, row in food_data.iterrows():
+            key = f"ID: {int(row['Food_ID'])} - {row['Food_Name']}"
+            food_options[key] = int(row['Food_ID'])
         
-        # Extract the ID from the selected option
-        selected_id = int(selected_option.split("-")[0].replace("ID:", "").strip())
+        selected_option = st.selectbox(
+            "Select Food to Update", 
+            list(food_options.keys()),
+            key="update_selectbox"
+        )
         
-        # Find the selected food item
-        selected_item = food_data[food_data["Food_ID"] == selected_id]
+        selected_id = food_options[selected_option]
+        selected_item = food_data[food_data["Food_ID"] == selected_id].iloc[0]
         
-        if selected_item.empty:
-            st.error(f"Could not find food with ID {selected_id}")
-            return
-        
-        selected_item = selected_item.iloc[0]
-        
-        # Display current item details
-        st.write("### Current Details:")
+        # Show current details
+        st.write("### 📝 Current Details:")
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.write(f"**Food Name:** {selected_item['Food_Name']}")
-            st.write(f"**Quantity:** {selected_item['Quantity']}")
+            st.info(f"**Food Name:** {selected_item['Food_Name']}")
+            st.info(f"**Quantity:** {selected_item['Quantity']}")
         with col2:
-            st.write(f"**Expiry Date:** {selected_item['Expiry_Date']}")
-            st.write(f"**Location:** {selected_item.get('Location', 'N/A')}")
+            st.info(f"**Expiry Date:** {selected_item['Expiry_Date']}")
+            st.info(f"**Location:** {selected_item.get('Location', 'N/A')}")
         with col3:
-            st.write(f"**Food Type:** {selected_item.get('Food_Type', 'N/A')}")
-            st.write(f"**Meal Type:** {selected_item.get('Meal_Type', 'N/A')}")
+            st.info(f"**Food Type:** {selected_item.get('Food_Type', 'N/A')}")
+            st.info(f"**Meal Type:** {selected_item.get('Meal_Type', 'N/A')}")
         
-        st.markdown("---")
+        st.divider()
         
-        # Create update form
-        st.write("### Update Details:")
+        # Update form
         with st.form(key=f"update_form_{selected_id}"):
+            st.write("### ✏️ Update Details:")
             update_col1, update_col2 = st.columns(2)
             
             with update_col1:
-                # Handle text fields safely
-                current_name = str(selected_item.get("Food_Name", ""))
-                updated_name = st.text_input("Food Name", value=current_name, key=f"update_name_{selected_id}")
+                updated_name = st.text_input(
+                    "Food Name*", 
+                    value=str(selected_item.get("Food_Name", "")),
+                    key=f"name_{selected_id}"
+                )
                 
-                # Handle quantity safely
-                try:
-                    current_quantity = int(selected_item["Quantity"])
-                except (ValueError, TypeError):
-                    current_quantity = 1
-                updated_quantity = st.number_input("Quantity", min_value=1, value=current_quantity, key=f"update_quantity_{selected_id}")
+                current_quantity = int(selected_item.get("Quantity", 1))
+                updated_quantity = st.number_input(
+                    "Quantity", 
+                    min_value=1, 
+                    value=current_quantity,
+                    key=f"qty_{selected_id}"
+                )
                 
-                # Handle expiry date safely
+                # Handle expiry date
                 try:
-                    # Convert string to date if needed
-                    if isinstance(selected_item["Expiry_Date"], str):
-                        current_expiry = datetime.datetime.strptime(selected_item["Expiry_Date"], "%Y-%m-%d").date()
-                    elif hasattr(selected_item["Expiry_Date"], 'date'):
-                        current_expiry = selected_item["Expiry_Date"].date()
+                    if pd.isna(selected_item["Expiry_Date"]):
+                        current_expiry = datetime.date.today()
+                    elif isinstance(selected_item["Expiry_Date"], str):
+                        current_expiry = datetime.datetime.strptime(
+                            selected_item["Expiry_Date"], "%Y-%m-%d"
+                        ).date()
                     else:
                         current_expiry = selected_item["Expiry_Date"]
-                except (ValueError, TypeError, AttributeError):
+                except:
                     current_expiry = datetime.date.today()
                 
-                updated_expiry = st.date_input("Expiry Date", value=current_expiry, key=f"update_expiry_{selected_id}")
+                updated_expiry = st.date_input(
+                    "Expiry Date", 
+                    value=current_expiry,
+                    key=f"exp_{selected_id}"
+                )
             
             with update_col2:
-                # Handle location
-                current_location = str(selected_item.get("Location", ""))
-                updated_location = st.text_input("Location", value=current_location, key=f"update_location_{selected_id}")
+                updated_location = st.text_input(
+                    "Location*", 
+                    value=str(selected_item.get("Location", "")),
+                    key=f"loc_{selected_id}"
+                )
                 
-                # Food Type
                 food_types = ["Vegetarian", "Non-Vegetarian", "Vegan", "Dairy", "Gluten-Free", "Organic"]
                 current_food_type = str(selected_item.get("Food_Type", "Vegetarian"))
-                try:
-                    index = food_types.index(current_food_type)
-                except ValueError:
-                    index = 0
-                updated_food_type = st.selectbox("Food Type", food_types, index=index, key=f"update_food_type_{selected_id}")
+                food_type_index = food_types.index(current_food_type) if current_food_type in food_types else 0
+                updated_food_type = st.selectbox(
+                    "Food Type", 
+                    food_types, 
+                    index=food_type_index,
+                    key=f"ftype_{selected_id}"
+                )
                 
-                # Meal Type
                 meal_types = ["Breakfast", "Lunch", "Dinner", "Snacks", "Dessert", "Beverage"]
                 current_meal_type = str(selected_item.get("Meal_Type", "Breakfast"))
-                try:
-                    index = meal_types.index(current_meal_type)
-                except ValueError:
-                    index = 0
-                updated_meal_type = st.selectbox("Meal Type", meal_types, index=index, key=f"update_meal_type_{selected_id}")
+                meal_type_index = meal_types.index(current_meal_type) if current_meal_type in meal_types else 0
+                updated_meal_type = st.selectbox(
+                    "Meal Type", 
+                    meal_types, 
+                    index=meal_type_index,
+                    key=f"mtype_{selected_id}"
+                )
             
-            update_button = st.form_submit_button("Update Food Item", use_container_width=True)
+            update_button = st.form_submit_button("🔄 Update Food Item", use_container_width=True)
             
             if update_button:
-                # Validate required fields
-                if not updated_name or not updated_location:
-                    st.error("Food name and location are required!")
+                # Validation
+                if not updated_name or not updated_name.strip():
+                    st.error("❌ Food name is required!")
+                    return
+                
+                if not updated_location or not updated_location.strip():
+                    st.error("❌ Location is required!")
                     return
                 
                 try:
-                    conn = get_db_connection()
-                    if conn:
+                    with st.spinner("Updating food item..."):
+                        conn = get_db_connection()
+                        if not conn:
+                            st.error("❌ Failed to connect to database")
+                            return
+                        
                         cursor = conn.cursor()
-                        cursor.execute("""
+                        
+                        update_query = """
                             UPDATE food_listings 
-                            SET Food_Name = %s, Quantity = %s, Expiry_Date = %s, Location = %s, Food_Type = %s, Meal_Type = %s
+                            SET Food_Name = %s, Quantity = %s, Expiry_Date = %s, 
+                                Location = %s, Food_Type = %s, Meal_Type = %s
                             WHERE Food_ID = %s
-                        """, (updated_name, updated_quantity, updated_expiry, updated_location, 
-                              updated_food_type, updated_meal_type, selected_id))
+                        """
+                        
+                        cursor.execute(update_query, (
+                            updated_name.strip(), updated_quantity, updated_expiry, 
+                            updated_location.strip(), updated_food_type, updated_meal_type, 
+                            selected_id
+                        ))
                         
                         rows_affected = cursor.rowcount
                         conn.commit()
@@ -200,122 +273,169 @@ def update_food():
                         
                         if rows_affected > 0:
                             st.success(f"✅ Food item #{selected_id} updated successfully!")
-                            # Clear session state data to force refresh
                             if "food_data" in st.session_state:
                                 del st.session_state["food_data"]
-                            
-                            # Use st.rerun() instead of session state flag
-                            st.rerun()
+                            st.experimental_rerun() if hasattr(st, 'experimental_rerun') else st.rerun()
                         else:
-                            st.warning(f"No changes made to food item #{selected_id}.")
-                    else:
-                        st.error("Failed to connect to database")
+                            st.warning(f"⚠️ No changes made to food item #{selected_id}")
                         
                 except Error as e:
-                    st.error(f"Error updating food item: {str(e)}")
+                    st.error(f"❌ Database Error: {str(e)}")
+                    st.code(f"Error Code: {e.errno}\nSQL State: {e.sqlstate}")
                 except Exception as e:
-                    st.error(f"Unexpected error: {str(e)}")
+                    st.error(f"❌ Unexpected Error: {str(e)}")
+                    st.code(traceback.format_exc())
     
     except Exception as e:
-        st.error(f"Error in update function: {str(e)}")
+        st.error(f"❌ Error in update function: {str(e)}")
+        st.code(traceback.format_exc())
 
 def delete_food():
     """Delete a food listing from the database."""
     st.subheader("🗑️ Delete Food Listing")
     
-    # Load fresh data
-    food_data = load_food_data()
-    
-    # Check if there's data to show
-    if food_data.empty:
-        st.info("No food listings available to delete.")
-        return
-    
-    # Display current data for reference
-    with st.expander("Current Food Listings", expanded=True):
-        st.dataframe(food_data, use_container_width=True)
-    
     try:
-        # Make sure Food_ID is properly handled as integer
+        # Load fresh data
+        with st.spinner("Loading food data..."):
+            food_data = load_food_data()
+        
+        st.write(f"**Debug:** Loaded {len(food_data)} food items")
+        
+        if food_data.empty:
+            st.info("📝 No food listings available to delete.")
+            return
+        
+        # Show current data
+        with st.expander("📋 Current Food Listings", expanded=False):
+            st.dataframe(food_data, use_container_width=True)
+        
+        # Clean data
+        food_data = food_data.copy()
         food_data['Food_ID'] = pd.to_numeric(food_data['Food_ID'], errors='coerce')
-        food_data = food_data.dropna(subset=['Food_ID'])  # Remove rows with invalid IDs
+        food_data = food_data.dropna(subset=['Food_ID'])
         food_data['Food_ID'] = food_data['Food_ID'].astype(int)
         
-        # Create a list of food options with ID and name
-        food_options = [f"ID: {int(row['Food_ID'])} - {row['Food_Name']}" 
-                        for _, row in food_data.iterrows()]
-        
-        if not food_options:
-            st.info("No valid food listings available.")
+        if len(food_data) == 0:
+            st.error("❌ No valid food items found")
             return
         
-        # Select food item to delete  
-        selected_option = st.selectbox("Select Food to Delete", food_options, key="delete_select")
+        # Create selection options
+        food_options = {}
+        for _, row in food_data.iterrows():
+            key = f"ID: {int(row['Food_ID'])} - {row['Food_Name']}"
+            food_options[key] = int(row['Food_ID'])
         
-        # Extract the ID from the selected option
-        selected_id = int(selected_option.split("-")[0].replace("ID:", "").strip())
+        selected_option = st.selectbox(
+            "Select Food to Delete", 
+            list(food_options.keys()),
+            key="delete_selectbox"
+        )
         
-        # Find the selected food item
-        selected_item = food_data[food_data["Food_ID"] == selected_id]
+        selected_id = food_options[selected_option]
+        selected_item = food_data[food_data["Food_ID"] == selected_id].iloc[0]
         
-        if selected_item.empty:
-            st.error(f"Could not find food with ID {selected_id}")
-            return
-        
-        selected_item = selected_item.iloc[0]
-        
-        # Display food details in columns
-        st.write("### Food Details")
+        # Show details
+        st.write("### 📋 Food Details")
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            st.write(f"**Food Name:** {selected_item['Food_Name']}")
-            st.write(f"**Quantity:** {selected_item['Quantity']}")
+            st.info(f"**Food Name:** {selected_item['Food_Name']}")
+            st.info(f"**Quantity:** {selected_item['Quantity']}")
+        with col2:
+            st.info(f"**Expiry Date:** {selected_item['Expiry_Date']}")
+            st.info(f"**Location:** {selected_item.get('Location', 'N/A')}")
+        with col3:
+            st.info(f"**Food Type:** {selected_item.get('Food_Type', 'N/A')}")
+            st.info(f"**Meal Type:** {selected_item.get('Meal_Type', 'N/A')}")
+        
+        st.divider()
+        
+        # Confirmation
+        st.error("⚠️ **WARNING:** This action cannot be undone!")
+        
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            if st.button("🗑️ Yes, Delete This Item", type="primary", use_container_width=True):
+                try:
+                    with st.spinner("Deleting food item..."):
+                        conn = get_db_connection()
+                        if not conn:
+                            st.error("❌ Failed to connect to database")
+                            return
+                        
+                        cursor = conn.cursor()
+                        cursor.execute("DELETE FROM food_listings WHERE Food_ID = %s", (selected_id,))
+                        
+                        rows_affected = cursor.rowcount
+                        conn.commit()
+                        cursor.close()
+                        conn.close()
+                        
+                        if rows_affected > 0:
+                            st.success(f"✅ Food item #{selected_id} deleted successfully!")
+                            if "food_data" in st.session_state:
+                                del st.session_state["food_data"]
+                            st.experimental_rerun() if hasattr(st, 'experimental_rerun') else st.rerun()
+                        else:
+                            st.warning(f"⚠️ No food item with ID #{selected_id} found")
+                            
+                except Error as e:
+                    st.error(f"❌ Database Error: {str(e)}")
+                    st.code(f"Error Code: {e.errno}\nSQL State: {e.sqlstate}")
+                except Exception as e:
+                    st.error(f"❌ Unexpected Error: {str(e)}")
+                    st.code(traceback.format_exc())
         
         with col2:
-            st.write(f"**Expiry Date:** {selected_item['Expiry_Date']}")
-            st.write(f"**Location:** {selected_item.get('Location', 'N/A')}")
-        
-        with col3:
-            st.write(f"**Food Type:** {selected_item.get('Food_Type', 'N/A')}")
-            st.write(f"**Meal Type:** {selected_item.get('Meal_Type', 'N/A')}")
-        
-        st.markdown("---")
-        
-        # Confirm deletion with a warning
-        st.warning("⚠️ Are you sure you want to delete this food item? This action cannot be undone.")
-        
-        delete = st.button("Yes, Delete This Food Item", type="primary", use_container_width=True, key=f"delete_btn_{selected_id}")
-        
-        if delete:
-            try:
-                conn = get_db_connection()
-                if conn:
-                    cursor = conn.cursor()
-                    cursor.execute("DELETE FROM food_listings WHERE Food_ID = %s", (selected_id,))
-                    
-                    rows_affected = cursor.rowcount
-                    conn.commit()
-                    cursor.close()
-                    conn.close()
-                    
-                    if rows_affected > 0:
-                        st.success(f"✅ Food item #{selected_id} deleted successfully!")
-                        # Clear session state data to force refresh
-                        if "food_data" in st.session_state:
-                            del st.session_state["food_data"]
-                        
-                        # Use st.rerun() instead of session state flag
-                        st.rerun()
-                    else:
-                        st.warning(f"No food item with ID #{selected_id} was found or deleted.")
-                else:
-                    st.error("Failed to connect to database")
-                    
-            except Error as e:
-                st.error(f"Error deleting food item: {str(e)}")
-            except Exception as e:
-                st.error(f"Unexpected error: {str(e)}")
+            if st.button("❌ Cancel", use_container_width=True):
+                st.info("Delete operation cancelled")
     
     except Exception as e:
-        st.error(f"Error in delete function: {str(e)}")
+        st.error(f"❌ Error in delete function: {str(e)}")
+        st.code(traceback.format_exc())
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEBUGGING HELPER FUNCTIONS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_database_connection():
+    """Test database connection and show table info."""
+    st.subheader("🔧 Database Connection Test")
+    
+    try:
+        conn = get_db_connection()
+        if conn:
+            st.success("✅ Database connection successful!")
+            
+            cursor = conn.cursor()
+            
+            # Show table structure
+            cursor.execute("DESCRIBE food_listings")
+            table_structure = cursor.fetchall()
+            
+            st.write("**Table Structure:**")
+            df = pd.DataFrame(table_structure, columns=['Field', 'Type', 'Null', 'Key', 'Default', 'Extra'])
+            st.dataframe(df)
+            
+            # Show record count
+            cursor.execute("SELECT COUNT(*) FROM food_listings")
+            count = cursor.fetchone()[0]
+            st.write(f"**Total Records:** {count}")
+            
+            # Show sample data
+            if count > 0:
+                cursor.execute("SELECT * FROM food_listings LIMIT 5")
+                sample_data = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
+                sample_df = pd.DataFrame(sample_data, columns=columns)
+                st.write("**Sample Data:**")
+                st.dataframe(sample_df)
+            
+            cursor.close()
+            conn.close()
+        else:
+            st.error("❌ Failed to connect to database")
+            
+    except Exception as e:
+        st.error(f"❌ Database test failed: {str(e)}")
+        st.code(traceback.format_exc())
