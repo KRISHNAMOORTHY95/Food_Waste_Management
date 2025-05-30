@@ -16,45 +16,49 @@ def add_food():
         col1, col2 = st.columns(2)
         
         with col1:
-            food_name = st.text_input("Food Name")
-            quantity = st.number_input("Quantity", min_value=1, value=1)
-            expiry = st.date_input("Expiry Date", min_value=datetime.date.today())
-            provider_id = st.number_input("Provider ID", min_value=1, value=1)
+            food_name = st.text_input("Food Name", key="add_food_name")
+            quantity = st.number_input("Quantity", min_value=1, value=1, key="add_quantity")
+            expiry = st.date_input("Expiry Date", min_value=datetime.date.today(), key="add_expiry")
+            provider_id = st.number_input("Provider ID", min_value=1, value=1, key="add_provider_id")
         
         with col2:
-            provider_type = st.selectbox("Provider Type", ["Restaurant", "Grocery Store", "Supermarket", "Bakery", "Hotel", "Farm"])
-            location = st.text_input("Location")
-            food_type = st.selectbox("Food Type", ["Vegetarian", "Non-Vegetarian", "Vegan", "Dairy", "Gluten-Free", "Organic"])
-            meal_type = st.selectbox("Meal Type", ["Breakfast", "Lunch", "Dinner", "Snacks", "Dessert", "Beverage"])
+            provider_type = st.selectbox("Provider Type", ["Restaurant", "Grocery Store", "Supermarket", "Bakery", "Hotel", "Farm"], key="add_provider_type")
+            location = st.text_input("Location", key="add_location")
+            food_type = st.selectbox("Food Type", ["Vegetarian", "Non-Vegetarian", "Vegan", "Dairy", "Gluten-Free", "Organic"], key="add_food_type")
+            meal_type = st.selectbox("Meal Type", ["Breakfast", "Lunch", "Dinner", "Snacks", "Dessert", "Beverage"], key="add_meal_type")
 
         submit_button = st.form_submit_button("Add Food", use_container_width=True)
 
         if submit_button:
             if not food_name or not location:
                 st.error("Food name and location are required!")
-            else:
-                try:
-                    conn = get_db_connection()
-                    if conn:
-                        cursor = conn.cursor()
-                        cursor.execute("""
-                            INSERT INTO food_listings (Food_Name, Quantity, Expiry_Date, Provider_ID, Provider_Type, Location, Food_Type, Meal_Type)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
-                            (food_name, quantity, expiry, provider_id, provider_type, location, food_type, meal_type))
-                        conn.commit()
-                        conn.close()
-                        st.success("✅ Food item added successfully!")
+                return
+            
+            try:
+                conn = get_db_connection()
+                if conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        INSERT INTO food_listings (Food_Name, Quantity, Expiry_Date, Provider_ID, Provider_Type, Location, Food_Type, Meal_Type)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                        (food_name, quantity, expiry, provider_id, provider_type, location, food_type, meal_type))
+                    conn.commit()
+                    cursor.close()
+                    conn.close()
+                    st.success("✅ Food item added successfully!")
 
-                        # Force refresh data in session state
-                        if "food_data" in st.session_state:
-                            del st.session_state["food_data"]
-                        
-                        # Set a flag to trigger rerun using a state change
-                        st.session_state.need_rerun = True
-                    else:
-                        st.error("Failed to connect to database")
-                except Error as e:
-                    st.error(f"Error adding food item: {str(e)}")
+                    # Clear session state data to force refresh
+                    if "food_data" in st.session_state:
+                        del st.session_state["food_data"]
+                    
+                    # Use st.rerun() instead of session state flag
+                    st.rerun()
+                else:
+                    st.error("Failed to connect to database")
+            except Error as e:
+                st.error(f"Error adding food item: {str(e)}")
+            except Exception as e:
+                st.error(f"Unexpected error: {str(e)}")
 
 def update_food():
     """Update an existing food listing."""
@@ -74,6 +78,8 @@ def update_food():
     
     try:
         # Make sure Food_ID is properly handled as integer
+        food_data['Food_ID'] = pd.to_numeric(food_data['Food_ID'], errors='coerce')
+        food_data = food_data.dropna(subset=['Food_ID'])  # Remove rows with invalid IDs
         food_data['Food_ID'] = food_data['Food_ID'].astype(int)
         
         # Create a list of food options with ID and name
@@ -85,7 +91,7 @@ def update_food():
             return
         
         # Select food item to update    
-        selected_option = st.selectbox("Select Food to Update", food_options)
+        selected_option = st.selectbox("Select Food to Update", food_options, key="update_select")
         
         # Extract the ID from the selected option
         selected_id = int(selected_option.split("-")[0].replace("ID:", "").strip())
@@ -116,59 +122,66 @@ def update_food():
         
         # Create update form
         st.write("### Update Details:")
-        with st.form(key="update_form"):
+        with st.form(key=f"update_form_{selected_id}"):
             update_col1, update_col2 = st.columns(2)
             
             with update_col1:
                 # Handle text fields safely
-                current_name = selected_item.get("Food_Name", "")
-                updated_name = st.text_input("Food Name", value=current_name)
+                current_name = str(selected_item.get("Food_Name", ""))
+                updated_name = st.text_input("Food Name", value=current_name, key=f"update_name_{selected_id}")
                 
                 # Handle quantity safely
                 try:
                     current_quantity = int(selected_item["Quantity"])
-                except:
+                except (ValueError, TypeError):
                     current_quantity = 1
-                updated_quantity = st.number_input("Quantity", min_value=1, value=current_quantity)
+                updated_quantity = st.number_input("Quantity", min_value=1, value=current_quantity, key=f"update_quantity_{selected_id}")
                 
                 # Handle expiry date safely
                 try:
                     # Convert string to date if needed
                     if isinstance(selected_item["Expiry_Date"], str):
                         current_expiry = datetime.datetime.strptime(selected_item["Expiry_Date"], "%Y-%m-%d").date()
+                    elif hasattr(selected_item["Expiry_Date"], 'date'):
+                        current_expiry = selected_item["Expiry_Date"].date()
                     else:
                         current_expiry = selected_item["Expiry_Date"]
-                except Exception as e:
+                except (ValueError, TypeError, AttributeError):
                     current_expiry = datetime.date.today()
                 
-                updated_expiry = st.date_input("Expiry Date", value=current_expiry)
+                updated_expiry = st.date_input("Expiry Date", value=current_expiry, key=f"update_expiry_{selected_id}")
             
             with update_col2:
                 # Handle location
-                current_location = selected_item.get("Location", "")
-                updated_location = st.text_input("Location", value=current_location)
+                current_location = str(selected_item.get("Location", ""))
+                updated_location = st.text_input("Location", value=current_location, key=f"update_location_{selected_id}")
                 
                 # Food Type
                 food_types = ["Vegetarian", "Non-Vegetarian", "Vegan", "Dairy", "Gluten-Free", "Organic"]
-                current_food_type = selected_item.get("Food_Type", "Vegetarian")
+                current_food_type = str(selected_item.get("Food_Type", "Vegetarian"))
                 try:
                     index = food_types.index(current_food_type)
-                except:
+                except ValueError:
                     index = 0
-                updated_food_type = st.selectbox("Food Type", food_types, index=index)
+                updated_food_type = st.selectbox("Food Type", food_types, index=index, key=f"update_food_type_{selected_id}")
                 
                 # Meal Type
                 meal_types = ["Breakfast", "Lunch", "Dinner", "Snacks", "Dessert", "Beverage"]
-                current_meal_type = selected_item.get("Meal_Type", "Breakfast")
+                current_meal_type = str(selected_item.get("Meal_Type", "Breakfast"))
                 try:
                     index = meal_types.index(current_meal_type)
-                except:
+                except ValueError:
                     index = 0
-                updated_meal_type = st.selectbox("Meal Type", meal_types, index=index)
+                updated_meal_type = st.selectbox("Meal Type", meal_types, index=index, key=f"update_meal_type_{selected_id}")
             
             update_button = st.form_submit_button("Update Food Item", use_container_width=True)
             
             if update_button:
+                # Validate required fields
+                if not updated_name or not updated_location:
+                    st.error("Food name and location are required!")
+                    return
+                
                 try:
                     conn = get_db_connection()
                     if conn:
@@ -182,16 +195,17 @@ def update_food():
                         
                         rows_affected = cursor.rowcount
                         conn.commit()
+                        cursor.close()
                         conn.close()
                         
                         if rows_affected > 0:
                             st.success(f"✅ Food item #{selected_id} updated successfully!")
-                            # Force refresh data in session state
+                            # Clear session state data to force refresh
                             if "food_data" in st.session_state:
                                 del st.session_state["food_data"]
                             
-                            # Set a flag to trigger rerun using a state change
-                            st.session_state.need_rerun = True
+                            # Use st.rerun() instead of session state flag
+                            st.rerun()
                         else:
                             st.warning(f"No changes made to food item #{selected_id}.")
                     else:
@@ -199,6 +213,8 @@ def update_food():
                         
                 except Error as e:
                     st.error(f"Error updating food item: {str(e)}")
+                except Exception as e:
+                    st.error(f"Unexpected error: {str(e)}")
     
     except Exception as e:
         st.error(f"Error in update function: {str(e)}")
@@ -221,6 +237,8 @@ def delete_food():
     
     try:
         # Make sure Food_ID is properly handled as integer
+        food_data['Food_ID'] = pd.to_numeric(food_data['Food_ID'], errors='coerce')
+        food_data = food_data.dropna(subset=['Food_ID'])  # Remove rows with invalid IDs
         food_data['Food_ID'] = food_data['Food_ID'].astype(int)
         
         # Create a list of food options with ID and name
@@ -232,7 +250,7 @@ def delete_food():
             return
         
         # Select food item to delete  
-        selected_option = st.selectbox("Select Food to Delete", food_options)
+        selected_option = st.selectbox("Select Food to Delete", food_options, key="delete_select")
         
         # Extract the ID from the selected option
         selected_id = int(selected_option.split("-")[0].replace("ID:", "").strip())
@@ -267,7 +285,7 @@ def delete_food():
         # Confirm deletion with a warning
         st.warning("⚠️ Are you sure you want to delete this food item? This action cannot be undone.")
         
-        delete = st.button("Yes, Delete This Food Item", type="primary", use_container_width=True)
+        delete = st.button("Yes, Delete This Food Item", type="primary", use_container_width=True, key=f"delete_btn_{selected_id}")
         
         if delete:
             try:
@@ -278,16 +296,17 @@ def delete_food():
                     
                     rows_affected = cursor.rowcount
                     conn.commit()
+                    cursor.close()
                     conn.close()
                     
                     if rows_affected > 0:
                         st.success(f"✅ Food item #{selected_id} deleted successfully!")
-                        # Force refresh data in session state
+                        # Clear session state data to force refresh
                         if "food_data" in st.session_state:
                             del st.session_state["food_data"]
                         
-                        # Set a flag to trigger rerun using a state change
-                        st.session_state.need_rerun = True
+                        # Use st.rerun() instead of session state flag
+                        st.rerun()
                     else:
                         st.warning(f"No food item with ID #{selected_id} was found or deleted.")
                 else:
@@ -295,6 +314,8 @@ def delete_food():
                     
             except Error as e:
                 st.error(f"Error deleting food item: {str(e)}")
+            except Exception as e:
+                st.error(f"Unexpected error: {str(e)}")
     
     except Exception as e:
         st.error(f"Error in delete function: {str(e)}")
